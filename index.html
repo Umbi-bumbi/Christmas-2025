@@ -22,7 +22,7 @@
     th { background: #008cff; color: #fff; }
     .success { background: #e7ffe7; padding: 12px; border-radius: 6px; margin-top: 12px; }
     .error { background: #ffe0e0; padding: 12px; border-radius: 6px; margin-top: 12px; }
-    /* Admin-Login Overlay */
+    /* Login Overlay Basis */
     .admin-login-overlay {
       position: fixed;
       inset: 0;
@@ -95,37 +95,20 @@
     </div>
   </div>
 
-  <!-- ADMIN LOGIN OVERLAY (hidden by default) -->
-  <div id="adminLogin" class="admin-login-overlay hidden">
-    <div class="admin-login-box">
-      <h3>Admin Login</h3>
-      <p>Bitte Benutzername und Passwort eingeben.</p>
-      <label>Benutzername</label>
-      <input type="text" id="adminUser" placeholder="Umbi" />
-      <label>Passwort</label>
-      <input type="password" id="adminPass" placeholder="••••••" />
-      <button id="adminLoginBtn" style="width:100%; margin-top:8px;">Login</button>
-      <p id="adminError" class="error hidden" style="margin-top:10px;">Falsche Zugangsdaten.</p>
-    </div>
-  </div>
-
   <script>
     const STORAGE_KEY = "quiz-results-v1";
 
     // Tabs
     const tabs = document.querySelectorAll(".tab-btn");
     const tabContents = document.querySelectorAll(".tab-content");
-    const adminLoginOverlay = document.getElementById("adminLogin");
-    const adminError = document.getElementById("adminError");
-    let adminUnlocked = false;
+
+    let adminUnlocked = false; // erst nach richtigem Login true
 
     function showTab(tabId) {
-      // Buttons
       tabs.forEach(b => b.classList.remove("active"));
       const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
       if (activeBtn) activeBtn.classList.add("active");
 
-      // Inhalte
       tabContents.forEach(tc => {
         tc.classList.toggle("hidden", tc.id !== tabId);
       });
@@ -135,20 +118,16 @@
       }
     }
 
-    // Beim Laden: IMMER zuerst Quiz zeigen
+    // beim Laden: immer Quiz
     showTab("quiz");
 
     tabs.forEach(btn => {
       btn.addEventListener("click", () => {
         const target = btn.dataset.tab;
         if (target === "admin" && !adminUnlocked) {
-          // nur Login zeigen, aber NICHT auf Admin umschalten
-          adminLoginOverlay.classList.remove("hidden");
-          // Felder leeren
-          document.getElementById("adminUser").value = "";
-          document.getElementById("adminPass").value = "";
-          adminError.classList.add("hidden");
-          // wieder Quiz aktiv lassen
+          // Login-Fenster JETZT erstellen
+          openAdminLogin();
+          // auf Quiz bleiben
           showTab("quiz");
           return;
         }
@@ -156,19 +135,41 @@
       });
     });
 
-    // Admin-Login
-    document.getElementById("adminLoginBtn").addEventListener("click", () => {
-      const user = document.getElementById("adminUser").value.trim();
-      const pass = document.getElementById("adminPass").value.trim();
-      if (user === "Umbi" && pass === "power") {
-        adminUnlocked = true;
-        adminLoginOverlay.classList.add("hidden");
-        adminError.classList.add("hidden");
-        showTab("admin");
-      } else {
-        adminError.classList.remove("hidden");
-      }
-    });
+    function openAdminLogin() {
+      // falls schon offen → nix tun
+      if (document.getElementById("adminLoginOverlay")) return;
+
+      const overlay = document.createElement("div");
+      overlay.id = "adminLoginOverlay";
+      overlay.className = "admin-login-overlay";
+      overlay.innerHTML = `
+        <div class="admin-login-box">
+          <h3>Admin Login</h3>
+          <p>Bitte Benutzername und Passwort eingeben.</p>
+          <label>Benutzername</label>
+          <input type="text" id="adminUser" placeholder="Umbi" />
+          <label>Passwort</label>
+          <input type="password" id="adminPass" placeholder="••••••" />
+          <button id="adminLoginBtn" style="width:100%; margin-top:8px;">Login</button>
+          <p id="adminError" class="error hidden" style="margin-top:10px;">Falsche Zugangsdaten.</p>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      document.getElementById("adminLoginBtn").addEventListener("click", () => {
+        const user = document.getElementById("adminUser").value.trim();
+        const pass = document.getElementById("adminPass").value.trim();
+        if (user === "Umbi" && pass === "power") {
+          adminUnlocked = true;
+          // Overlay entfernen
+          overlay.remove();
+          // jetzt wirklich Admin anzeigen
+          showTab("admin");
+        } else {
+          document.getElementById("adminError").classList.remove("hidden");
+        }
+      });
+    }
 
     // Quiz-Teil
     const QUESTIONS = [
