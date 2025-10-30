@@ -22,7 +22,6 @@
     th { background: #008cff; color: #fff; }
     .success { background: #e7ffe7; padding: 12px; border-radius: 6px; margin-top: 12px; }
     .error { background: #ffe0e0; padding: 12px; border-radius: 6px; margin-top: 12px; }
-    /* Login Overlay Basis */
     .admin-login-overlay {
       position: fixed;
       inset: 0;
@@ -53,7 +52,7 @@
   <div id="quiz" class="tab-content">
     <div id="form-card" class="card">
       <h2>Teilnehmerdaten</h2>
-      <label>Vor- und Nachname*</label>
+      <label>Name*</label>
       <input type="text" id="name" placeholder="z.B. Roberto Paglianiti" required>
       <label>Adresse*</label>
       <input type="text" id="address" placeholder="Weihnachtsstrasse 1, 6969 Santahausen" required>
@@ -102,7 +101,7 @@
     const tabs = document.querySelectorAll(".tab-btn");
     const tabContents = document.querySelectorAll(".tab-content");
 
-    let adminUnlocked = false; // erst nach richtigem Login true
+    let adminUnlocked = false;
 
     function showTab(tabId) {
       tabs.forEach(b => b.classList.remove("active"));
@@ -118,16 +117,14 @@
       }
     }
 
-    // beim Laden: immer Quiz
+    // Start immer auf Quiz
     showTab("quiz");
 
     tabs.forEach(btn => {
       btn.addEventListener("click", () => {
         const target = btn.dataset.tab;
         if (target === "admin" && !adminUnlocked) {
-          // Login-Fenster JETZT erstellen
           openAdminLogin();
-          // auf Quiz bleiben
           showTab("quiz");
           return;
         }
@@ -136,7 +133,6 @@
     });
 
     function openAdminLogin() {
-      // falls schon offen → nix tun
       if (document.getElementById("adminLoginOverlay")) return;
 
       const overlay = document.createElement("div");
@@ -161,9 +157,7 @@
         const pass = document.getElementById("adminPass").value.trim();
         if (user === "Umbi" && pass === "power") {
           adminUnlocked = true;
-          // Overlay entfernen
           overlay.remove();
-          // jetzt wirklich Admin anzeigen
           showTab("admin");
         } else {
           document.getElementById("adminError").classList.remove("hidden");
@@ -171,7 +165,7 @@
       });
     }
 
-    // Quiz-Teil
+    // Quiz-Logik
     const QUESTIONS = [
       { q: "Wie viele Minuten hat eine Stunde?", a: ["30", "45", "60", "90"], correct: 2 },
       { q: "Welche Farbe hat Chlorophyll überwiegend?", a: ["Rot", "Blau", "Grün", "Gelb"], correct: 2 },
