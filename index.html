@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Quiz + Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background:#f5f5f5; }
+    h1 { text-align: center; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab-btn { padding: 8px 16px; border: none; border-radius: 6px; background: #ddd; cursor: pointer; }
+    .tab-btn.active { background: #008cff; color: #fff; }
+    .card { background: #fff; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,.1); }
+    .hidden { display: none; }
+    .question { margin-bottom: 15px; font-weight: bold; }
+    .answers label { display: block; margin-bottom: 8px; background: #f1f1f1; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+    button { padding: 10px 20px; border: none; background: #008cff; color: #fff; border-radius: 6px; cursor: pointer; font-size: 1rem; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    input[type=text], input[type=email], input[type=password] { width: 100%; padding: 8px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #ddd; }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background: #008cff; color: #fff; }
+    .success { background: #e7ffe7; padding: 12px; border-radius: 6px; margin-top: 12px; }
+    .error { background: #ffe0e0; padding: 12px; border-radius: 6px; margin-top: 12px; }
+    /* Admin-Login Overlay */
+    .admin-login-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .admin-login-box {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      width: min(90%, 350px);
+      box-shadow: 0 8px 25px rgba(0,0,0,.2);
+    }
+    .admin-login-box h3 { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <h1>Quiz</h1>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="quiz">Quiz</button>
+    <button class="tab-btn" data-tab="admin">Admin</button>
+  </div>
+
+  <!-- QUIZ -->
+  <div id="quiz" class="tab-content">
+    <div id="form-card" class="card">
+      <h2>Teilnehmerdaten</h2>
+      <label>Vor- und Nachname*</label>
+      <input type="text" id="name" placeholder="z.B. Roberto Paglianiti" required>
+      <label>Adresse*</label>
+      <input type="text" id="address" placeholder="Weihnachtsstrasse 1, 6969 Santahausen" required>
+      <label>E-Mail (optional)</label>
+      <input type="email" id="email" placeholder="name@example.com">
+      <button id="startBtn">Quiz starten</button>
+      <p id="formError" class="error hidden">Bitte Name und Adresse ausfüllen.</p>
+    </div>
+
+    <div id="quiz-card" class="card hidden">
+      <h2>Quiz</h2>
+      <div id="quiz-container"></div>
+      <button id="submitBtn">Abgeben</button>
+      <p id="quizMsg" class="hidden"></p>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
+  <div id="admin" class="tab-content hidden">
+    <div class="card">
+      <h2>Admin – Ergebnisse</h2>
+      <p>Hier siehst du alle lokal gespeicherten Einreichungen.</p>
+      <button id="refreshBtn" style="background:#008cff;">Neu laden</button>
+      <button id="clearBtn" style="background:#d60000; margin-left:10px;">Alle löschen</button>
+      <br><br>
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Adresse</th>
+            <th>E-Mail</th>
+            <th>Punkte</th>
+            <th>Abgegeben am</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ADMIN LOGIN OVERLAY (hidden by default) -->
+  <div id="adminLogin" class="admin-login-overlay hidden">
+    <div class="admin-login-box">
+      <h3>Admin Login</h3>
+      <p>Bitte Benutzername und Passwort eingeben.</p>
+      <label>Benutzername</label>
+      <input type="text" id="adminUser" placeholder="Umbi" />
+      <label>Passwort</label>
+      <input type="password" id="adminPass" placeholder="••••••" />
+      <button id="adminLoginBtn" style="width:100%; margin-top:8px;">Login</button>
+      <p id="adminError" class="error hidden" style="margin-top:10px;">Falsche Zugangsdaten.</p>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "quiz-results-v1";
+
+    // Tabs
+    const tabs = document.querySelectorAll(".tab-btn");
+    const tabContents = document.querySelectorAll(".tab-content");
+    const adminLoginOverlay = document.getElementById("adminLogin");
+    const adminError = document.getElementById("adminError");
+    let adminUnlocked = false;
+
+    function showTab(tabId) {
+      // Buttons
+      tabs.forEach(b => b.classList.remove("active"));
+      const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+      if (activeBtn) activeBtn.classList.add("active");
+
+      // Inhalte
+      tabContents.forEach(tc => {
+        tc.classList.toggle("hidden", tc.id !== tabId);
+      });
+
+      if (tabId === "admin") {
+        loadResults();
+      }
+    }
+
+    // Beim Laden: IMMER zuerst Quiz zeigen
+    showTab("quiz");
+
+    tabs.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const target = btn.dataset.tab;
+        if (target === "admin" && !adminUnlocked) {
+          // nur Login zeigen, aber NICHT auf Admin umschalten
+          adminLoginOverlay.classList.remove("hidden");
+          // Felder leeren
+          document.getElementById("adminUser").value = "";
+          document.getElementById("adminPass").value = "";
+          adminError.classList.add("hidden");
+          // wieder Quiz aktiv lassen
+          showTab("quiz");
+          return;
+        }
+        showTab(target);
+      });
+    });
+
+    // Admin-Login
+    document.getElementById("adminLoginBtn").addEventListener("click", () => {
+      const user = document.getElementById("adminUser").value.trim();
+      const pass = document.getElementById("adminPass").value.trim();
+      if (user === "Umbi" && pass === "power") {
+        adminUnlocked = true;
+        adminLoginOverlay.classList.add("hidden");
+        adminError.classList.add("hidden");
+        showTab("admin");
+      } else {
+        adminError.classList.remove("hidden");
+      }
+    });
+
+    // Quiz-Teil
+    const QUESTIONS = [
+      { q: "Wie viele Minuten hat eine Stunde?", a: ["30", "45", "60", "90"], correct: 2 },
+      { q: "Welche Farbe hat Chlorophyll überwiegend?", a: ["Rot", "Blau", "Grün", "Gelb"], correct: 2 },
+      { q: "Welche Stadt ist die Hauptstadt der Schweiz?", a: ["Zürich", "Genf", "Bern", "Basel"], correct: 2 },
+      { q: "Was bedeutet die Abkürzung 'CPU'?", a: ["Central Processing Unit", "Computer Power Unit", "Central Program Utility", "Core Process Unit"], correct: 0 },
+      { q: "Wie viele Kontinente gibt es (klassisch)?", a: ["5", "6", "7", "8"], correct: 2 },
+      { q: "Welche Programmiersprache wird im Webbrowser direkt ausgeführt?", a: ["Python", "C#", "JavaScript", "PHP"], correct: 2 },
+      { q: "Wie viele Bits hat ein Byte?", a: ["4", "8", "16", "32"], correct: 1 },
+      { q: "Welche Einheit misst elektrische Spannung?", a: ["Watt", "Volt", "Ampere", "Ohm"], correct: 1 },
+      { q: "Welcher Planet ist der Sonne am nächsten?", a: ["Venus", "Merkur", "Mars", "Erde"], correct: 1 },
+      { q: "Was ist die Wurzel aus 81?", a: ["7", "8", "9", "10"], correct: 2 }
+    ];
+
+    const startBtn = document.getElementById("startBtn");
+    const formCard = document.getElementById("form-card");
+    const quizCard = document.getElementById("quiz-card");
+    const quizContainer = document.getElementById("quiz-container");
+    const submitBtn = document.getElementById("submitBtn");
+    const formError = document.getElementById("formError");
+    const quizMsg = document.getElementById("quizMsg");
+
+    let currentUser = null;
+
+    startBtn.addEventListener("click", () => {
+      const name = document.getElementById("name").value.trim();
+      const address = document.getElementById("address").value.trim();
+      const email = document.getElementById("email").value.trim();
+      if (!name || !address) {
+        formError.classList.remove("hidden");
+        return;
+      }
+      formError.classList.add("hidden");
+      currentUser = { name, address, email, startedAt: new Date().toISOString() };
+      formCard.classList.add("hidden");
+      quizCard.classList.remove("hidden");
+      renderQuiz();
+    });
+
+    function renderQuiz() {
+      quizContainer.innerHTML = "";
+      QUESTIONS.forEach((item, index) => {
+        const div = document.createElement("div");
+        div.innerHTML = `
+          <p class="question">${index+1}. ${item.q}</p>
+          <div class="answers">
+            ${item.a.map((ans, i) => `
+              <label>
+                <input type="radio" name="q${index}" value="${i}"> ${ans}
+              </label>
+            `).join("")}
+          </div>
+        `;
+        quizContainer.appendChild(div);
+      });
+    }
+
+    submitBtn.addEventListener("click", () => {
+      let score = 0;
+      const answers = [];
+      QUESTIONS.forEach((item, index) => {
+        const selected = document.querySelector(`input[name="q${index}"]:checked`);
+        const userAns = selected ? parseInt(selected.value, 10) : null;
+        if (userAns === item.correct) score++;
+        answers.push({ question: item.q, selected: userAns, correct: item.correct });
+      });
+
+      const result = {
+        user: currentUser,
+        score: score,
+        total: QUESTIONS.length,
+        answers: answers,
+        submittedAt: new Date().toISOString()
+      };
+
+      const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      existing.push(result);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+
+      quizMsg.classList.remove("hidden");
+      quizMsg.className = "success";
+      quizMsg.textContent = `Danke ${currentUser.name}! Du hast ${score} von ${QUESTIONS.length} Punkten erreicht.`;
+      submitBtn.disabled = true;
+    });
+
+    // Admin-Teil
+    function loadResults() {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      const tbody = document.querySelector("#resultsTable tbody");
+      if (!tbody) return;
+      tbody.innerHTML = "";
+      data.forEach((entry, idx) => {
+        const tr = document.createElement("tr");
+        const date = entry.submittedAt ? new Date(entry.submittedAt).toLocaleString("de-CH") : "";
+        tr.innerHTML = `
+          <td>${idx+1}</td>
+          <td>${entry.user?.name || ""}</td>
+          <td>${entry.user?.address || ""}</td>
+          <td>${entry.user?.email || ""}</td>
+          <td>${entry.score} / ${entry.total}</td>
+          <td>${date}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById("refreshBtn")?.addEventListener("click", loadResults);
+    document.getElementById("clearBtn")?.addEventListener("click", () => {
+      if (confirm("Wirklich alle Einträge löschen?")) {
+        localStorage.removeItem(STORAGE_KEY);
+        loadResults();
+      }
+    });
+  </script>
+</body>
+</html>
